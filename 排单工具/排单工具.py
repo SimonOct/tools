@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # @Time    : 2023-8-29
-# @Update  : 2023-9-5
+# @Update  : 2023-9-23
 # @Author  : simonoct14@outlook.com
 # @Purposes: 将资料表的排单明细中的数据(手动导入)根据集团编号分类后生成以集团、账期区分的明细文件(使用明细sheet、明细表sheet)。然后将所有与集团对账单(对账单sheet，该文件由别的系统生成)合并，最终形成所有在排单明细中的集团的对账单(对账单sheet、使用明细sheet、明细表sheet)。
 # @Comment  : 使用时的版本，numpy=1.25.2 openpyxl=3.1.2 pandas=2.0.3 xlwings=0.30.10 pyinstaller=5.13.0 Python=3.11.4。
@@ -13,6 +13,7 @@ import pandas as pd
 import calendar
 import xlwings as xw
 import glob
+
 
 class CategorizeExcel:
 
@@ -55,6 +56,8 @@ class CategorizeExcel:
         """对数据表中的数据进行排序后再进行生成文件, 避免存在数据不按集团名顺序排列的情况"""
         self.sort_data(self.source_file_path)
         self.execute()
+        """生成财务看的总表，该表不同之处在于检测项目列从显示数量转变为显示具体价格"""
+        self.finance_details()
 
     def sort_data(self, source_file_path):
         print("正在对数据进行排序...")
@@ -392,6 +395,58 @@ class CategorizeExcel:
             self.output_wb.save(file)
             self.output_wb.close()
         print("完成。")
+    
+    def finance_details(self):
+        finance_excel_path = os.path.join(os.getcwd(), "财务-排单明细表.xlsx")
+        shutil.copy(source_file_path, finance_excel_path)
+
+        wb = openpyxl.load_workbook(finance_excel_path)
+        ws = wb['排单明细']
+
+        # 获取表头行
+        header_row = ws[1]
+
+        # 指定要读取的列范围
+        start_column = 19
+
+        # 读取指定范围内的表头列
+        selected_columns = header_row[start_column-1:]
+        selected_columns = selected_columns[:-4]
+
+        # 使用enumerate将列索引与对应的列标题组成字典
+        column_dict = {index: title for index, title in enumerate(selected_columns, start=start_column)}
+
+        for index, title in column_dict.items():
+
+            try:
+                title_index = self.price_project_names.index(title.value)
+            except:
+                pass
+            for i in range(2, ws.max_row + 1):
+                if title.value in self.price_project_names:
+                    
+                    amount = ws.cell(row=i, column=index).value
+                    if amount is None:
+                        amount = 0
+                    ws.cell(row=i, column=index).value = f"=VLOOKUP(H{i},价目表1!$A$2:${get_column_letter(wb['价目表1'].max_column)}${wb['价目表1'].max_row},{title_index+2},FALSE)*{amount}"
+                else:
+                    amount = ws.cell(row=i, column=index).value
+                    if amount is None:
+                        amount = 0
+                    ws.cell(row=i, column=index).value = f"=VLOOKUP({get_column_letter(index)}1,价目表2!$A$2:$B${wb['价目表2'].max_row},2,FALSE)*{amount}"
+
+
+        wb.save(finance_excel_path)
+        wb.close()
+
+
+
+
+
+
+
+
+
 
 
 # 打开当前文件夹下的排单表.xlsx
@@ -476,9 +531,12 @@ for file in output_files_name:
     output_files_dict[group_num] = file
 statements_files_name = [os.path.basename(file) for file in statements_files]
 statements_files_dict = {}
-for file in statements_files_name:
-    group_num = file.split('-')[2]
-    statements_files_dict[group_num] = file
+try:
+    for file in statements_files_name:
+        group_num = file.split('-')[2]
+        statements_files_dict[group_num] = file
+except IndexError:
+    print(f"“{statements_folder}”内有文件存在命名问题，命名要求请查看说明书！")
 
 count = 0
 print("正在合并文件中...")
