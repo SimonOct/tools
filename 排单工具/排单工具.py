@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # @Time    : 2023-8-29
-# @Update  : 2023-9-23
+# @Update  : 2023-10-8
 # @Author  : simonoct14@outlook.com
 # @Purposes: 将资料表的排单明细中的数据(手动导入)根据集团编号分类后生成以集团、账期区分的明细文件(使用明细sheet、明细表sheet)。然后将所有与集团对账单(对账单sheet，该文件由别的系统生成)合并，最终形成所有在排单明细中的集团的对账单(对账单sheet、使用明细sheet、明细表sheet)。
-# @Comment  : 使用时的版本，numpy=1.25.2 openpyxl=3.1.2 pandas=2.0.3 xlwings=0.30.10 pyinstaller=5.13.0 Python=3.11.4。
+# @Comment  : 使用时的版本，numpy=1.26.0 openpyxl=3.1.2 pandas=2.1.1 xlwings=0.30.12 pyinstaller=6.0.0 Python=3.12.0。
 import openpyxl
 import os
 import shutil
@@ -397,6 +397,7 @@ class CategorizeExcel:
         print("完成。")
     
     def finance_details(self):
+        print("正在生成财务-排单明细表.xlsx")
         finance_excel_path = os.path.join(os.getcwd(), "财务-排单明细表.xlsx")
         shutil.copy(source_file_path, finance_excel_path)
 
@@ -406,47 +407,94 @@ class CategorizeExcel:
         # 获取表头行
         header_row = ws[1]
 
-        # 指定要读取的列范围
-        start_column = 19
+        # 删除最后四列，该四列不是检测项目
+        ws.delete_cols(ws.max_column - 3, 4)
 
-        # 读取指定范围内的表头列
+        # 检验项目开始的列数
+        start_column = 19
+        # 记录复制列前的最大列数
+        before_copy_max_column = ws.max_column
+
+        # 复制从第19列到最后一列的数据
+        data_to_copy = []
+        for col in ws.iter_cols(min_col=19, values_only=True):
+            data_to_copy.append(col)
+
+        # 追加复制的数据到最后一列，并设置字体和对齐方式
+        for col_data in data_to_copy:
+            start = 1
+            max_column = ws.max_column + 1
+            
+            for value in col_data:
+                ws.cell(row=start, column=max_column, value=value)
+                if start == 1:
+                    ws.cell(row=start, column=max_column).font = Font(size=10, name='宋体', bold=True)
+                else:
+                    ws.cell(row=start, column=max_column).font = Font(size=10, name='宋体')
+                ws.cell(row=start, column=max_column).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
+                start += 1
+
+        # 提取需要插入公式的表头列
         selected_columns = header_row[start_column-1:]
         selected_columns = selected_columns[:-4]
 
         # 使用enumerate将列索引与对应的列标题组成字典
-        column_dict = {index: title for index, title in enumerate(selected_columns, start=start_column)}
+        column_dict = {index: title for index, title in enumerate(selected_columns, start=before_copy_max_column+1)}
 
         for index, title in column_dict.items():
 
+            # 尝试获取表头索引，self.price_project_names是由价目表1的表头组成的列表
             try:
                 title_index = self.price_project_names.index(title.value)
             except:
                 pass
-            for i in range(2, ws.max_row + 1):
+            # 追加excel公式用来计算检测项目费用
+            for i in range(2, ws.max_row+1):
+                # 如果检测项目存在于价目表1
                 if title.value in self.price_project_names:
                     
                     amount = ws.cell(row=i, column=index).value
+                    # 遇到空白的单元格时，设置为0
                     if amount is None:
                         amount = 0
                     ws.cell(row=i, column=index).value = f"=VLOOKUP(H{i},价目表1!$A$2:${get_column_letter(wb['价目表1'].max_column)}${wb['价目表1'].max_row},{title_index+2},FALSE)*{amount}"
+                # 如果检测项目不存在于价目表1
                 else:
                     amount = ws.cell(row=i, column=index).value
+                    # 遇到空白的单元格时，设置为0
                     if amount is None:
                         amount = 0
                     ws.cell(row=i, column=index).value = f"=VLOOKUP({get_column_letter(index)}1,价目表2!$A$2:$B${wb['价目表2'].max_row},2,FALSE)*{amount}"
 
+        # 记录追加公式前最大列数
+        before_sum_max_column = ws.max_column
+
+        # 在列表最后添加数量合计列
+        ws.cell(row=1, column=ws.max_column+1).value = "数量小计"
+        ws.cell(row=1, column=ws.max_column).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
+        ws.cell(row=1, column=ws.max_column).font = Font(size=10, name='宋体', bold=True)
+        start_sum_column = get_column_letter(start_column)
+        end_sum_column = get_column_letter(before_copy_max_column)
+        for row in range(2, ws.max_row+1):
+            ws.cell(row=row, column=ws.max_column).value = f'=SUM({start_sum_column}{row}:{end_sum_column}{row})'
+            ws.cell(row=row, column=ws.max_column).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
+            ws.cell(row=row, column=ws.max_column).font = Font(size=10, name='宋体')
+
+        # 在列表最后添加金额合计列
+        ws.cell(row=1, column=ws.max_column+1).value = "金额小计"
+        ws.cell(row=1, column=ws.max_column).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
+        ws.cell(row=1, column=ws.max_column).font = Font(size=10, name='宋体', bold=True)
+        start_currency_sum_column = get_column_letter(before_copy_max_column+1)
+        end_currency_sum_column = get_column_letter(before_sum_max_column)
+        for row in range(2, ws.max_row+1):
+            ws.cell(row=row, column=ws.max_column).value = f'=SUM({start_currency_sum_column}{row}:{end_currency_sum_column}{row})'
+            ws.cell(row=row, column=ws.max_column).number_format = '#,##0.00'
+            ws.cell(row=row, column=ws.max_column).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
+            ws.cell(row=row, column=ws.max_column).font = Font(size=10, name='宋体')
 
         wb.save(finance_excel_path)
         wb.close()
-
-
-
-
-
-
-
-
-
+        print("完成。")
 
 
 # 打开当前文件夹下的排单表.xlsx
