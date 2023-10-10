@@ -1,14 +1,14 @@
-本工具用于给公司财务部门提供帮助，可以将汇总的数据表拆分生成明细表，再将明细表和简易财务系统生成的Excel表合并，从而生成完整的对账单。
+本工具用于给公司财务部门提供帮助，可以将汇总的数据表拆分生成明细表，再将明细表和简易财务系统生成的Excel表合并，从而生成完整的对账单。最后生成的一份“财务-排单明细表”是用于金额核对。
 
 主要使用的库和版本如下：
 
 ```
-numpy = 1.25.2
+numpy = 1.26.0
 openpyxl = 3.1.2 
-pandas = 2.0.3
-xlwings = 0.30.10
-pyinstaller = 5.13.0
-Python = 3.11.4
+pandas = 2.1.1
+xlwings = 0.30.12
+pyinstaller = 6.0.0
+Python = 3.12.0
 ```
 
 工具采用Python开发，使用numpy、openpyxl、pandas等库读取和处理Excel表格，使用xlwings与Excel交互，并用pyinstaller将Python代码打包成可执行文件，方便在没有Python环境的电脑上运行。

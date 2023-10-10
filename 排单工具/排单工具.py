@@ -13,6 +13,7 @@ import pandas as pd
 import calendar
 import xlwings as xw
 import glob
+import warnings
 
 
 class CategorizeExcel:
@@ -56,8 +57,6 @@ class CategorizeExcel:
         """对数据表中的数据进行排序后再进行生成文件, 避免存在数据不按集团名顺序排列的情况"""
         self.sort_data(self.source_file_path)
         self.execute()
-        """生成财务看的总表，该表不同之处在于检测项目列从显示数量转变为显示具体价格"""
-        self.finance_details()
 
     def sort_data(self, source_file_path):
         print("正在对数据进行排序...")
@@ -396,105 +395,6 @@ class CategorizeExcel:
             self.output_wb.close()
         print("完成。")
     
-    def finance_details(self):
-        print("正在生成财务-排单明细表.xlsx")
-        finance_excel_path = os.path.join(os.getcwd(), "财务-排单明细表.xlsx")
-        shutil.copy(source_file_path, finance_excel_path)
-
-        wb = openpyxl.load_workbook(finance_excel_path)
-        ws = wb['排单明细']
-
-        # 获取表头行
-        header_row = ws[1]
-
-        # 删除最后四列，该四列不是检测项目
-        ws.delete_cols(ws.max_column - 3, 4)
-
-        # 检验项目开始的列数
-        start_column = 19
-        # 记录复制列前的最大列数
-        before_copy_max_column = ws.max_column
-
-        # 复制从第19列到最后一列的数据
-        data_to_copy = []
-        for col in ws.iter_cols(min_col=19, values_only=True):
-            data_to_copy.append(col)
-
-        # 追加复制的数据到最后一列，并设置字体和对齐方式
-        for col_data in data_to_copy:
-            start = 1
-            max_column = ws.max_column + 1
-            
-            for value in col_data:
-                ws.cell(row=start, column=max_column, value=value)
-                if start == 1:
-                    ws.cell(row=start, column=max_column).font = Font(size=10, name='宋体', bold=True)
-                else:
-                    ws.cell(row=start, column=max_column).font = Font(size=10, name='宋体')
-                ws.cell(row=start, column=max_column).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
-                start += 1
-
-        # 提取需要插入公式的表头列
-        selected_columns = header_row[start_column-1:]
-        selected_columns = selected_columns[:-4]
-
-        # 使用enumerate将列索引与对应的列标题组成字典
-        column_dict = {index: title for index, title in enumerate(selected_columns, start=before_copy_max_column+1)}
-
-        for index, title in column_dict.items():
-
-            # 尝试获取表头索引，self.price_project_names是由价目表1的表头组成的列表
-            try:
-                title_index = self.price_project_names.index(title.value)
-            except:
-                pass
-            # 追加excel公式用来计算检测项目费用
-            for i in range(2, ws.max_row+1):
-                # 如果检测项目存在于价目表1
-                if title.value in self.price_project_names:
-                    
-                    amount = ws.cell(row=i, column=index).value
-                    # 遇到空白的单元格时，设置为0
-                    if amount is None:
-                        amount = 0
-                    ws.cell(row=i, column=index).value = f"=VLOOKUP(H{i},价目表1!$A$2:${get_column_letter(wb['价目表1'].max_column)}${wb['价目表1'].max_row},{title_index+2},FALSE)*{amount}"
-                # 如果检测项目不存在于价目表1
-                else:
-                    amount = ws.cell(row=i, column=index).value
-                    # 遇到空白的单元格时，设置为0
-                    if amount is None:
-                        amount = 0
-                    ws.cell(row=i, column=index).value = f"=VLOOKUP({get_column_letter(index)}1,价目表2!$A$2:$B${wb['价目表2'].max_row},2,FALSE)*{amount}"
-
-        # 记录追加公式前最大列数
-        before_sum_max_column = ws.max_column
-
-        # 在列表最后添加数量合计列
-        ws.cell(row=1, column=ws.max_column+1).value = "数量小计"
-        ws.cell(row=1, column=ws.max_column).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
-        ws.cell(row=1, column=ws.max_column).font = Font(size=10, name='宋体', bold=True)
-        start_sum_column = get_column_letter(start_column)
-        end_sum_column = get_column_letter(before_copy_max_column)
-        for row in range(2, ws.max_row+1):
-            ws.cell(row=row, column=ws.max_column).value = f'=SUM({start_sum_column}{row}:{end_sum_column}{row})'
-            ws.cell(row=row, column=ws.max_column).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
-            ws.cell(row=row, column=ws.max_column).font = Font(size=10, name='宋体')
-
-        # 在列表最后添加金额合计列
-        ws.cell(row=1, column=ws.max_column+1).value = "金额小计"
-        ws.cell(row=1, column=ws.max_column).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
-        ws.cell(row=1, column=ws.max_column).font = Font(size=10, name='宋体', bold=True)
-        start_currency_sum_column = get_column_letter(before_copy_max_column+1)
-        end_currency_sum_column = get_column_letter(before_sum_max_column)
-        for row in range(2, ws.max_row+1):
-            ws.cell(row=row, column=ws.max_column).value = f'=SUM({start_currency_sum_column}{row}:{end_currency_sum_column}{row})'
-            ws.cell(row=row, column=ws.max_column).number_format = '#,##0.00'
-            ws.cell(row=row, column=ws.max_column).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
-            ws.cell(row=row, column=ws.max_column).font = Font(size=10, name='宋体')
-
-        wb.save(finance_excel_path)
-        wb.close()
-        print("完成。")
 
 
 # 打开当前文件夹下的排单表.xlsx
@@ -637,7 +537,91 @@ if count == 0:
     print(f"③检查“{output_folder}”内是否有文件。")
     print(f"④确认。“{output_folder}”内公司存在于“{statements_folder}”")
     print(f"⑤检查“{output_folder}”内文件名格式是否为“集团编号-协议号-公司名[日期]”。")
+    if input("是否要退出程序？请输入大写的Y后回车：") == "Y":
+        exit()
 else:
     print("完成。")
     print(f"合并了{count}份文件。")
+
+# 生成财务看的总表，该表不同之处在于复制检测项目列后粘贴在最后一列，从显示数量转变为显示具体价格
+print("正在生成财务-排单明细表")
+
+# 消除pandas的提示
+warnings.filterwarnings('ignore')
+
+finance_excel_path = os.path.join(os.getcwd(), "财务-排单明细表.xlsx")
+# shutil.copy(source_file_path, finance_excel_path)
+
+df = pd.read_excel(source_file_path, sheet_name='排单明细')
+df = df.sort_values(by=['集团编号', '序号'], ignore_index=True)
+
+p1 = pd.read_excel(source_file_path, sheet_name='价目表1')
+p2 = pd.read_excel(source_file_path, sheet_name='价目表2')
+
+price_project_names = list(p1.columns)
+
+
+# 删除最后四列，该四列不是检测项目
+df = df.iloc[:, :-4]
+
+# 检测项目的表头
+headers = list(df.columns[18:])
+
+
+# 选择第19列到最后一列的数据
+columns_to_copy = df.columns[18:]  # 从第19列开始到最后一列
+
+# 获取DataFrame的列数
+before_copy_last_column = df.shape[1]
+
+# 复制选择的列并追加到最后一列后面
+df = pd.concat([df, df[columns_to_copy]], axis=1)
+
+after_copy_last_columns = df.shape[1]
+
+
+column_dict = {index: title for index, title in enumerate(headers, start=before_copy_last_column+1)}
+
+for index, title in column_dict.items():
+    try:
+        title_index = price_project_names.index(title)
+    except:
+        pass
+    # 追加excel公式用来计算检测项目费用
+    for i in range(0, df.shape[0]):
+        # 如果检测项目存在于价目表1
+        if title in price_project_names:
+            
+            amount = str(df.iat[i, index-1])
+            # 遇到空白的单元格时，设置为0
+            if amount is None or amount == 'nan':
+                amount = 0
+            # 这里的df.iat[i, index-1]中的i不+1和后面的i需要加2，区别在于前面的i默认忽略的表头，相当于默认加了1，后面的i没有这个前提。
+            df.iat[i, index-1] = f"=VLOOKUP(H{i+2},价目表1!$A$2:${get_column_letter(p1.shape[1])}${p1.shape[0]+1},{title_index+1},FALSE)*{amount}"
+        # 如果检测项目不存在于价目表1
+        else:
+            amount = str(df.iat[i, index-1])
+            # 遇到空白的单元格时，设置为0
+            if amount is None or amount == 'nan':
+                amount = 0
+            df.iat[i, index-1] = f"=VLOOKUP({get_column_letter(index)}1,价目表2!$A$2:$B${p2.shape[0]+1},2,FALSE)*{amount}"
+
+# 添加 "数量小计" 列，只包含表头，不包含数据
+df['数量小计'] = None
+# 添加 "金额小计" 列，只包含表头，不包含数据
+df['金额小计'] = None
+
+for i in range(0, df.shape[0]):
+    # 计算数量小计
+    df.iat[i, df.shape[1]-2] = f"=SUM({get_column_letter(19)}{i+2}:{get_column_letter(before_copy_last_column)}{i+2})"
+    # 计算金额小计
+    df.iat[i, df.shape[1]-1] = f"=SUM({get_column_letter(before_copy_last_column+1)}{i+2}:{get_column_letter(after_copy_last_columns)}{i+2})"
+
+# 使用 ExcelWriter 保存多个 DataFrame 到同一份 Excel 文件
+print("生成完成，正在写入文件中...")
+with pd.ExcelWriter(finance_excel_path) as writer:
+    df.to_excel(writer, sheet_name='使用明细', index=False)
+    p1.to_excel(writer, sheet_name='价目表1', index=False)
+    p2.to_excel(writer, sheet_name='价目表2', index=False)
+
 input("程序执行完毕, 关闭窗口或按回车结束。")
