@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # @Time    : 2023-8-29
-# @Update  : 2023-10-8
+# @Update  : 2025-4-10
 # @Author  : simonoct14@outlook.com
 # @Purposes: 将资料表的排单明细中的数据(手动导入)根据集团编号分类后生成以集团、账期区分的明细文件(使用明细sheet、明细表sheet)。然后将所有与集团对账单(对账单sheet，该文件由别的系统生成)合并，最终形成所有在排单明细中的集团的对账单(对账单sheet、使用明细sheet、明细表sheet)。
 # @Comment  : 使用时的版本，numpy=1.26.0 openpyxl=3.1.2 pandas=2.1.1 xlwings=0.30.12 pyinstaller=6.0.0 Python=3.12.0。
@@ -48,9 +48,9 @@ class CategorizeExcel:
         """检查模板中的使用明细的检测项目和明细表的检测项目是否完全一致"""
         self.check_template(template)
         """用来记录协议编号"""
-        self.detial_H_4 = ''
+        self.detial_K_4 = ''
         """用来记录协议单位"""
-        self.detial_I_4 = ''
+        self.detial_L_4 = ''
         """生成D、E列公式, 因为D、E列公式是固定的。还有生成价目表的字典用于搜寻对应(协议、检测项目)的价格后写入对应的生成文件"""
         self.gen_formula()
         self.date = date
@@ -80,8 +80,8 @@ class CategorizeExcel:
 
         """获取最后一列列号"""
         max_column = template_details_sheet.max_column
-        """明细表项目列表。19代表S列, max_column - 3指最后4列不计算在内。"""
-        for i in range(19, max_column - 3):
+        """明细表项目列表。22代表V列, max_column - 3指最后4列不计算在内。"""
+        for i in range(22, max_column - 3):
             cell_value = template_details_sheet.cell(row=3, column=i).value
             template_detials_header.append(cell_value)
 
@@ -93,8 +93,8 @@ class CategorizeExcel:
 
             template_usage_sheet_column_b.append(cell.value)
 
-        """排单明细表项目列表。19代表S列, max_column - 3指最后4列不计算在内。"""
-        for i in range(19, detail_sheet.max_column - 3):
+        """排单明细表项目列表。22代表V列, max_column - 3指最后4列不计算在内。"""
+        for i in range(22, detail_sheet.max_column - 3):
             cell_value = detail_sheet.cell(row=1, column=i).value
             source_data_header.append(cell_value)
 
@@ -164,11 +164,11 @@ class CategorizeExcel:
         """获取最后一行行号"""
         last_row = ws.max_row
         max_column = ws.max_column
-        """计算公式的起始列(R列)"""
-        start_col = ord('R') - ord('A') + 1
+        """计算公式的起始列(U列)"""
+        start_col = ord('U') - ord('A') + 1
         """生成公式列表"""
         formula = ['合计']
-        for i in range(19, max_column - 1):
+        for i in range(22, max_column - 1):
             sum = 0
             for row in range(4, last_row + 1):
                 """计算合计"""
@@ -177,11 +177,11 @@ class CategorizeExcel:
                     number = 0
                 sum = number + sum
             formula.append(sum)
-        """从第R列开始追加公式"""
+        """从第U列开始追加公式"""
         for i, f in enumerate(formula):
             ws.cell(row=last_row+1, column=start_col+i).value = f
             ws.cell(row=last_row+1, column=start_col+i).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
-            ws.cell(row=last_row+1, column=start_col+i).font = Font(size=10, name='宋体', bold=True)
+            ws.cell(row=last_row+1, column=start_col+i).font = Font(size=10, name='微软雅黑', bold=True)
             border = Border(left=Side(border_style='thin', color='000000'),
                 right=Side(border_style='thin', color='000000'),
                 top=Side(border_style='thin', color='000000'),
@@ -189,13 +189,13 @@ class CategorizeExcel:
             ws.cell(row=last_row+1, column=start_col+i).border = border
             if f == 0:
                 ws.column_dimensions.group(get_column_letter(start_col+i), get_column_letter(start_col+i), hidden=True)
-        ws.cell(row=1, column=1).font = Font(size=16, name='宋体', bold=True)
+        ws.cell(row=1, column=1).font = Font(size=16, name='微软雅黑', bold=True)
         ws.cell(row=1, column=1).alignment = Alignment(horizontal='left', vertical='bottom')
         ws.column_dimensions.group(get_column_letter(ws.max_column-1), get_column_letter(ws.max_column), hidden=True)
         """打印区域"""
         ws.print_area = f'A1:{get_column_letter(ws.max_column)}{ws.max_row}'
-        self.detial_H_4 = ws.cell(row=4, column=8).value
-        self.detial_I_4 = ws.cell(row=4, column=9).value
+        self.detial_K_4 = ws.cell(row=4, column=11).value
+        self.detial_L_4 = ws.cell(row=4, column=12).value
 
 
         """记录明细表的最后一行行数"""
@@ -230,17 +230,17 @@ class CategorizeExcel:
     def insert_formula(self):
         output_usage_sheet = self.output_wb['使用明细']
         output_details_sheet = self.output_wb['明细表']
-        agreement_number = self.output_wb['明细表']['H4'].value
-        output_details_sheet.column_dimensions.group('H', 'I', hidden=True)
-        output_details_sheet.column_dimensions.group('O', 'O', hidden=True)
-        output_usage_sheet.cell(row=1, column=2).value = self.detial_I_4
-        output_usage_sheet.cell(row=2, column=2).value = self.detial_H_4
+        agreement_number = self.output_wb['明细表']['K4'].value
+        output_details_sheet.column_dimensions.group('K', 'L', hidden=True)
+        output_details_sheet.column_dimensions.group('R', 'R', hidden=True)
+        output_usage_sheet.cell(row=1, column=2).value = self.detial_L_4
+        output_usage_sheet.cell(row=2, column=2).value = self.detial_K_4
         usage_sheet_data_start_row = 4
         """A、C、D、E列数目公式插入"""
         row = usage_sheet_data_start_row
         count = 0
-        """range(19, self.template_details_sheet_max_column - 3)的长度和self.price_project_names是一样的(check_template), 这里用前者是因为C列公式需要指定明细表的合计行。"""
-        for i in range(19, self.template_details_sheet_max_column - 3):
+        """range(22, self.template_details_sheet_max_column - 3)的长度和self.price_project_names是一样的(check_template), 这里用前者是因为C列公式需要指定明细表的合计行。"""
+        for i in range(22, self.template_details_sheet_max_column - 3):
             c_formula = output_details_sheet.cell(row=self.output_detail_last_row, column=i).value
             output_usage_sheet.cell(row=row, column=3).value = c_formula
             """判断当前行的检测项目是在价目表1还是价目表2, 然后在D列插入对应的价格"""
@@ -283,7 +283,7 @@ class CategorizeExcel:
             output_usage_sheet.max_row-1)
         """设置文字格式"""
         alignment = Alignment(horizontal='center')
-        font = Font(color="FF0000", bold=True, size=14)
+        font = Font(color="FF0000", bold=True, size=14, name='微软雅黑')
         for col in output_usage_sheet.iter_cols(min_row=output_usage_sheet.max_row, max_row=output_usage_sheet.max_row):
             for cell in col:
                 cell.alignment = alignment
@@ -310,12 +310,12 @@ class CategorizeExcel:
             """将每一行的数据(列表)追加到data_list中"""
             data = self.data_row(row)
             data_list.append(data)
-            """如果现在的索引8与上一次索引8不一样, 意味着集团名不一样, 则表明上一个集团已经完成记录, 需要写入到文件中。"""
-            if data_list[len(data_list)-2][8] != data_list[len(data_list)-1][8]:
+            """如果现在的索引10与上一次索引10不一样, 意味着集团名不一样, 则表明上一个集团已经完成记录, 需要写入到文件中。"""
+            if data_list[len(data_list)-2][11] != data_list[len(data_list)-1][11]:
                 """构建文件名"""
                 group_number = data_list[len(data_list)-2][self.template_details_sheet_max_column-2]
-                agreement_number = data_list[len(data_list)-2][7]
-                group_name = data_list[len(data_list)-2][8]
+                agreement_number = data_list[len(data_list)-2][10]
+                group_name = data_list[len(data_list)-2][11]
                 file_name = f"{group_number}-{agreement_number}-{group_name}[{self.date}].xlsx"
                 file_path = os.path.join(self.out_file_path, file_name)
                 """创建文件"""
@@ -330,7 +330,7 @@ class CategorizeExcel:
                     ws.cell(row=number+3, column=1).value = number
                     for column in range(1, len(data)+1):
                         ws.cell(row=number+3, column=column).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
-                        ws.cell(row=number+3, column=column).font = Font(size=10, name='宋体')
+                        ws.cell(row=number+3, column=column).font = Font(size=10, name='微软雅黑')
                         border = Border(left=Side(border_style='thin', color='000000'),
                                         right=Side(border_style='thin', color='000000'),
                                         top=Side(border_style='thin', color='000000'),
@@ -349,8 +349,8 @@ class CategorizeExcel:
 
         """循环后, 最后一个列表需要插入, 无论最后一条数据是否与前一次循环的相同, 都需要执行"""
         group_number = data_list[len(data_list)-1][self.template_details_sheet_max_column-2]
-        agreement_number = data_list[len(data_list)-1][7]
-        group_name = data_list[len(data_list)-1][8]
+        agreement_number = data_list[len(data_list)-1][10]
+        group_name = data_list[len(data_list)-1][11]
         file_name = f"{group_number}-{agreement_number}-{group_name}[{self.date}].xlsx"
         file_path = os.path.join(self.out_file_path, file_name)
         self.output_excel(file_path)
@@ -362,7 +362,7 @@ class CategorizeExcel:
             ws.cell(row=number+3, column=1).value = number
             for column in range(1, len(data)+1):
                 ws.cell(row=number+3, column=column).alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
-                ws.cell(row=number+3, column=column).font = Font(size=10, name='宋体')
+                ws.cell(row=number+3, column=column).font = Font(size=10, name='微软雅黑')
                 border = Border(left=Side(border_style='thin', color='000000'),
                                 right=Side(border_style='thin', color='000000'),
                                 top=Side(border_style='thin', color='000000'),
@@ -537,91 +537,10 @@ if count == 0:
     print(f"③检查“{output_folder}”内是否有文件。")
     print(f"④确认。“{output_folder}”内公司存在于“{statements_folder}”")
     print(f"⑤检查“{output_folder}”内文件名格式是否为“集团编号-协议号-公司名[日期]”。")
-    if input("是否要退出程序？请输入大写的Y后回车：") == "Y":
+    if input("是否要退出程序？退出请输入大写的Y后回车结束生成财务-排单明细表，继续执行请直接回车：") == "Y":
         exit()
 else:
     print("完成。")
     print(f"合并了{count}份文件。")
-
-# 生成财务看的总表，该表不同之处在于复制检测项目列后粘贴在最后一列，从显示数量转变为显示具体价格
-print("正在生成财务-排单明细表")
-
-# 消除pandas的提示
-warnings.filterwarnings('ignore')
-
-finance_excel_path = os.path.join(os.getcwd(), "财务-排单明细表.xlsx")
-# shutil.copy(source_file_path, finance_excel_path)
-
-df = pd.read_excel(source_file_path, sheet_name='排单明细')
-df = df.sort_values(by=['集团编号', '序号'], ignore_index=True)
-
-p1 = pd.read_excel(source_file_path, sheet_name='价目表1')
-p2 = pd.read_excel(source_file_path, sheet_name='价目表2')
-
-price_project_names = list(p1.columns)
-
-
-# 删除最后四列，该四列不是检测项目
-df = df.iloc[:, :-4]
-
-# 检测项目的表头
-headers = list(df.columns[18:])
-
-
-# 选择第19列到最后一列的数据
-columns_to_copy = df.columns[18:]  # 从第19列开始到最后一列
-
-# 获取DataFrame的列数
-before_copy_last_column = df.shape[1]
-
-# 复制选择的列并追加到最后一列后面
-df = pd.concat([df, df[columns_to_copy]], axis=1)
-
-after_copy_last_columns = df.shape[1]
-
-
-column_dict = {index: title for index, title in enumerate(headers, start=before_copy_last_column+1)}
-
-for index, title in column_dict.items():
-    try:
-        title_index = price_project_names.index(title)
-    except:
-        pass
-    # 追加excel公式用来计算检测项目费用
-    for i in range(0, df.shape[0]):
-        # 如果检测项目存在于价目表1
-        if title in price_project_names:
-            
-            amount = str(df.iat[i, index-1])
-            # 遇到空白的单元格时，设置为0
-            if amount is None or amount == 'nan':
-                amount = 0
-            # 这里的df.iat[i, index-1]中的i不+1和后面的i需要加2，区别在于前面的i默认忽略的表头，相当于默认加了1，后面的i没有这个前提。
-            df.iat[i, index-1] = f"=VLOOKUP(H{i+2},价目表1!$A$2:${get_column_letter(p1.shape[1])}${p1.shape[0]+1},{title_index+1},FALSE)*{amount}"
-        # 如果检测项目不存在于价目表1
-        else:
-            amount = str(df.iat[i, index-1])
-            # 遇到空白的单元格时，设置为0
-            if amount is None or amount == 'nan':
-                amount = 0
-            df.iat[i, index-1] = f"=VLOOKUP({get_column_letter(index)}1,价目表2!$A$2:$B${p2.shape[0]+1},2,FALSE)*{amount}"
-
-# 添加 "数量小计" 列，只包含表头，不包含数据
-df['数量小计'] = None
-# 添加 "金额小计" 列，只包含表头，不包含数据
-df['金额小计'] = None
-
-for i in range(0, df.shape[0]):
-    # 计算数量小计
-    df.iat[i, df.shape[1]-2] = f"=SUM({get_column_letter(19)}{i+2}:{get_column_letter(before_copy_last_column)}{i+2})"
-    # 计算金额小计
-    df.iat[i, df.shape[1]-1] = f"=SUM({get_column_letter(before_copy_last_column+1)}{i+2}:{get_column_letter(after_copy_last_columns)}{i+2})"
-
-# 使用 ExcelWriter 保存多个 DataFrame 到同一份 Excel 文件
-print("生成完成，正在写入文件中...")
-with pd.ExcelWriter(finance_excel_path) as writer:
-    df.to_excel(writer, sheet_name='使用明细', index=False)
-    p1.to_excel(writer, sheet_name='价目表1', index=False)
-    p2.to_excel(writer, sheet_name='价目表2', index=False)
 
 input("程序执行完毕, 关闭窗口或按回车结束。")
